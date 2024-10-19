@@ -245,7 +245,7 @@ prop_obj <- function(object, name) {
       stop(prop_error_unknown(object, name), call. = FALSE)
     }
 
-    if (prop_is_read_only(prop)) {
+    if (!is.null(prop$getter) && is.null(prop$setter)) {
       msg <- sprintf("Can't set read-only property %s@%s", obj_desc(object), name)
       stop(msg, call. = FALSE)
     }
@@ -293,21 +293,34 @@ prop_error_unknown <- function(object, prop_name) {
 # called from src/prop.c
 prop_validate <- function(prop, value, object = NULL) {
   if (!class_inherits(value, prop$class)) {
-    sprintf("%s must be %s, not %s",
+    return(sprintf("%s must be %s, not %s",
       prop_label(object, prop$name),
       class_desc(prop$class),
       obj_desc(value)
-    )
-  } else if (!is.null(prop$validator)) {
-    val <- prop$validator(value)
-    if (!is.null(val)) {
-      paste0(prop_label(object, prop$name), " ", val)
-    } else {
-      NULL
-    }
-  } else {
-    NULL
+    ))
   }
+
+  if (is.null(validator <- prop$validator)) {
+    return(NULL)
+  }
+
+  val <- validator(value)
+  if (is.null(val)) {
+    return(NULL)
+  }
+
+  if (is.character(val)) {
+    if (length(val)) {
+      return(paste0(prop_label(object, prop$name), " ", val))
+    } else {
+      return(NULL)
+    }
+  }
+
+  stop(sprintf(
+    "%s validator must return NULL or a character, not <%s>.",
+    prop_label(object, prop$name), typeof(val)
+  ))
 }
 
 prop_label <- function(object, name) {
@@ -478,3 +491,7 @@ as_property <- function(x, name, i) {
 prop_is_read_only <- function(prop) {
   is.function(prop$getter) && !is.function(prop$setter)
 }
+
+prop_has_setter <- function(prop) is.function(prop$setter)
+
+prop_is_dynamic <- function(prop) is.function(prop$getter)

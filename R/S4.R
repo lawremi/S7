@@ -45,11 +45,10 @@ S4_to_S7_class <- function(x, error_base = "") {
     if (x@package == "methods") {
       basic_classes <- S4_basic_classes()
       if (hasName(basic_classes, x@className)) {
-        basic_classes[[x@className]]
-      } else {
-        x
+        return(basic_classes[[x@className]])
       }
-    } else if (methods::extends(x, "oldClass")) {
+    }
+    if (methods::extends(x, "oldClass")) {
       new_S3_class(as.character(x@className))
     } else {
       x
@@ -86,8 +85,8 @@ S4_basic_classes <- function() {
     POSIXct = class_POSIXct,
     POSIXlt = class_POSIXlt,
     POSIXt = class_POSIXt,
-    matrix = class_matrix,
-    array = class_array,
+    # matrix = class_matrix,
+    # array = class_array,
     formula = class_formula
   )
 }

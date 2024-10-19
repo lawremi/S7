@@ -142,19 +142,27 @@ validate_factor <- function(self) {
   c(
     if (typeof(self) != "integer")
       "Underlying data must be an <integer>",
-    if (!is.character(attr(self, "levels")))
-      "attr(, 'levels') must be a <character>"
+    if (!is.character(attr(self, "levels", TRUE)))
+      "attr(, 'levels') must be a <character>",
+    { rng <- range(0L, unclass(self)); NULL },
+    if (rng[1] < 0L)
+      "Underlying data must be all positive",
+    if (rng[2] > length(attr(self, "levels", TRUE)))
+      "Not enough 'levels' for underlying data"
   )
 }
 
 validate_date <- function(self) {
-  if (!is.numeric(self)) {
-    "Underlying data must be numeric"
-  }
+  c(
+    if (mode(self) != "numeric")
+      "Underlying data must be numeric",
+    if (!inherits(self, "Date"))
+      "Underlying data must have class 'Date'"
+  )
 }
 
 validate_POSIXct <- function(self) {
-  if (!is.numeric(self)) {
+  if (mode(self) != "numeric") {
     return("Underlying data must be numeric")
   }
 
@@ -205,13 +213,14 @@ valid_dimnames <- function(self) {
 }
 
 validate_matrix <- function(self) {
-  if (is.matrix(self)) # is.matrix() methods should only return TRUE if valid
-    return(invisible(NULL))
-  if (!is.integer(dim(self)) || length(dim(self)) != 2L || !all(dim(self) >= 0L))
-    return("dim(self) must be a non-negative integer vector of length 2")
-  if (!valid_dimnames(self))
-    return("dimnames(self) must be NULL or a length 2 list of either NULL or a character vector of length equal to its corresponding dimension")
-  "is.matrix(self) is FALSE"
+  if (!is.matrix(self)) {
+    # is.matrix() methods should only return TRUE if valid
+    "is.matrix(self) is FALSE"
+  } else if (!is.integer(dim(self)) || length(dim(self)) != 2L || !all(dim(self) >= 0L)) {
+    "dim(self) must be a non-negative integer vector of length 2"
+  } else if (!valid_dimnames(self)) {
+    "dimnames(self) must be NULL or a length 2 list of either NULL or a character vector of length equal to its corresponding dimension"
+  }
 }
 
 validate_array <- function(self) {
@@ -229,7 +238,7 @@ validate_formula <- function(self) {
     return("environment(self) must be non-NULL")
   if (identical(self, stats::formula(NULL, environment(self)))) # weird NULL case
     return(invisible(NULL))
-  if (!is.call(self) || !length(self) %in% 2:3 || self[[1L]] != quote(`~`))
+  if (!is.call(self) || !length(self) %in% 2:3 || unclass(self)[[1L]] != quote(`~`))
     return("must be a call to `~` of length 2 or 3")
 }
 
@@ -243,8 +252,8 @@ validate_formula <- function(self) {
 #' * `class_Date` for dates.
 #' * `class_factor` for factors.
 #' * `class_POSIXct`, `class_POSIXlt` and `class_POSIXt` for date-times.
-#' * `class_matrix` for matrices.
-#' * `class_array` for arrays.
+# * `class_matrix` for matrices.
+# * `class_array` for arrays.
 #' * `class_formula` for formulas.
 
 #'
@@ -253,7 +262,8 @@ validate_formula <- function(self) {
 #' @format NULL
 #' @order 3
 class_factor <- new_S3_class("factor",
-  constructor = function(.data = integer(), levels = character()) {
+  constructor = function(.data = integer(), levels = NULL) {
+    levels <- levels %||% attr(.data, "levels", TRUE) %||% character()
     structure(.data, levels = levels, class = "factor")
   },
   validator = validate_factor
@@ -287,7 +297,7 @@ class_POSIXct <- new_S3_class(c("POSIXct", "POSIXt"),
 #' @order 3
 class_POSIXlt <- new_S3_class(c("POSIXlt", "POSIXt"),
   constructor = function(.data = NULL, tz = "") {
-    as.POSIXlt(NULL, tz = tz)
+    as.POSIXlt(.data, tz = tz)
   },
   validator = validate_POSIXlt
 )
@@ -315,23 +325,32 @@ class_data.frame <- new_S3_class("data.frame",
   validator = validate_data.frame
 )
 
-#' @export
-#' @rdname base_s3_classes
-#' @format NULL
-#' @order 3
+#  @export
+#  @rdname base_s3_classes
+#  @format NULL
+#  @order 3
 class_matrix <- new_S3_class("matrix",
-  constructor = function(.data = NA, nrow = 1, ncol = 1, byrow = FALSE, dimnames  = NULL) {
+  constructor = function(.data = logical(), nrow = NULL, ncol = NULL, byrow = FALSE, dimnames = NULL) {
+    nrow <- nrow %||% NROW(.data)
+    if(is.null(ncol)) {
+      ncol <- NCOL(.data)
+      if(length(.data) != (nrow * ncol)) {
+        ncol <- length(.data) %/% nrow
+      }
+    }
     matrix(.data, nrow, ncol, byrow, dimnames)
   },
   validator = validate_matrix
 )
 
-#' @export
-#' @rdname base_s3_classes
-#' @format NULL
-#' @order 3
+#  @export
+#  @rdname base_s3_classes
+#  @format NULL
+#  @order 3
 class_array <- new_S3_class("array",
-  constructor = function(.data = NA, dim = length(data), dimnames = NULL) {
+  constructor = function(.data = logical(),
+                         dim = base::dim(.data) %||% length(.data),
+                         dimnames = base::dimnames(.data)) {
     array(.data, dim, dimnames)
   },
   validator = validate_array
@@ -343,7 +362,7 @@ class_array <- new_S3_class("array",
 #' @order 3
 class_formula <- new_S3_class("formula",
   constructor = function(.data = NULL, env = parent.frame()) {
-    stats::formula(.data, env)
+    stats::formula(.data, env = env)
   },
   validator = validate_formula
 )

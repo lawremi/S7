@@ -1,16 +1,30 @@
 # S7 (development version)
 
-* `convert()` now provides a default method to transform a parent class instance 
+* `new_class()` now automatically infers the package name when called from 
+  within an R package (#459).
+
+* Improved error message when custom validators return invalid values (#454, #457).
+
+* New `nameOfClass()` method exported for S7 base classes, to enable usage like
+  `inherits("foo", S7::class_character)` (#432, #458)
+
+* Added support for more base/S3 classes (#434):
+    `class_POSIXlt`, `class_POSIXt`, `class_formula`, 
+    `class_call`, `class_language`, `class_name`
+
+* Fixed S3 methods registration across packages (#422).
+
+* `convert()` now provides a default method to transform a parent class instance
   into a subclass, enabling class construction from a prototype (#444).
 
-* The default object constructor returned by `new_class()` has been updated. 
+* The default object constructor returned by `new_class()` has been updated.
   It now accepts lazy (promise) property defaults and includes dynamic properties
-  with a `setter` in the constructor. Additionally, all custom property setters 
-  are now consistently invoked by the default constructor. If you're using S7 in 
-  an R package, you'll need to re-document to ensure that your documentation 
+  with a `setter` in the constructor. Additionally, all custom property setters
+  are now consistently invoked by the default constructor. If you're using S7 in
+  an R package, you'll need to re-document to ensure that your documentation
   matches the updated usage (#438, #445).
 
-* Fixed an issue where a custom property `getter()` would infinitely recurse 
+* Fixed an issue where a custom property `getter()` would infinitely recurse
   when accessing itself (reported in #403, fixed in #406).
 
 * Property setting (via `prop<-` and `@<-`) rewritten in C for performance (#396).

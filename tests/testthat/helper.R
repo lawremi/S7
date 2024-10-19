@@ -69,3 +69,74 @@ named_list <- function(...) {
   names(x) <- names2(x)
   x
 }
+
+`:=` <- function(sym, val) {
+  cl <- sys.call()
+  cl[[1L]] <- quote(`<-`)
+  stopifnot(is.symbol(cl[[2L]]) && is.call(cl[[3L]]))
+  cl[[3L]]$name <- as.character(cl[[2L]])
+  eval.parent(cl)
+}
+
+`add<-` <- `+`
+
+dbg <- function(..., .display = utils::str, .file = NULL) {
+  out <- NULL
+  exprs <- as.list(substitute(list(...)))[-1L]
+
+  if (!is.null(.file)) {
+    sink(.file, append = TRUE)
+    on.exit(sink())
+  }
+
+  for (i in seq_len(...length())) {
+    ..i <- as.symbol(sprintf("..%i", i))
+    if (eval(substitute(missing(..i)))) {
+      next
+    }
+
+    name <- names(exprs)[[i]]
+    expr <- deparse1(exprs[[i]])
+
+    label <- if (is.null(name)) {
+      sprintf("`%s`", expr)
+    } else {
+      sprintf("(%s) `%s`", name, expr)
+    }
+    cat(label, if (identical(.display, utils::str)) ": " else "\n", sep = "")
+    .display(out <- eval(..i))
+  }
+
+  cl <- sys.call()
+  filepath <- utils::getSrcFilename(cl)
+
+  if (length(filepath)) {
+    if (!file.exists(filepath) &&
+        file.exists(file.path("R", filepath))) {
+      filepath <- file.path("R", filepath)
+    }
+
+    lineno <- utils::getSrcLocation(cl)
+
+    if (isNamespaceLoaded("cli")) {
+      cli <- asNamespace("cli")
+      loc <- cli$col_grey(cli$style_hyperlink(
+        sprintf("(from %s:%i)", filepath, lineno),
+        sprintf("file://%s", normalizePath(filepath, mustWork = FALSE)),
+        params = c(line = lineno)
+      ))
+    } else {
+      loc <- sprintf("(from %s:%i)", filepath, lineno)
+    }
+
+    cat(loc, "\n")
+  } else {
+    cat(sprintf("(from call: %s (srcfile missing))\n", trimws(
+      deparse1(sys.call(-2) %error% sys.call(-1), width.cutoff = 60)
+    )))
+  }
+
+  invisible(out)
+}
+
+`%error%` <- function(x, y) tryCatch(x, error = function(e) y)
